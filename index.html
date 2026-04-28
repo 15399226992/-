@@ -128,6 +128,7 @@
     const topic = "esp32-watch/peak/data";
     let brokerIndex = 0;
     let client = null;
+    let latestData = null;
 
     function setText(id, text) {
       document.getElementById(id).innerText = text;
@@ -141,48 +142,92 @@
       document.getElementById(id).style.background = color;
     }
 
-    function updateData(data) {
-      setText('heartRate', data.heartRate + ' BPM');
-      setText('hrStatus', data.hrStatus);
-      setColor('heartRate', data.hrColor);
-      setBg('hrStatus', data.hrColor);
+    function emptyData() {
+      return {
+        heartRate: 0,
+        spo2: 0,
+        fingerOn: 0,
+        valid: 0,
+        stepCount: 0,
+        activity: 0,
+        activityText: '未知',
+        accValue: 0,
+        hrStatus: '无数据',
+        spo2Status: '无数据',
+        healthAdvice: '--',
+        sportAdvice: '--',
+        hrColor: '#9E9E9E',
+        spo2Color: '#9E9E9E',
+        fingerColor: '#F44336',
+        validColor: '#F44336',
+        activityColor: '#9E9E9E',
+        sessionValidCount: 0,
+        sessionHrAvg: 0,
+        sessionSpo2Avg: 0,
+        sessionHrMin: 0,
+        sessionHrMax: 0,
+        sessionSpo2Min: 0,
+        sessionSpo2Max: 0,
+        dailyMeasureTimes: 0,
+        dailyHrAvg: 0,
+        dailySpo2Avg: 0,
+        dailyLastHr: 0,
+        dailyLastSpo2: 0
+      };
+    }
 
-      setText('spo2', data.spo2 + ' %');
-      setText('spo2Status', data.spo2Status);
-      setColor('spo2', data.spo2Color);
-      setBg('spo2Status', data.spo2Color);
+    function normalizeData(data) {
+      return Object.assign(emptyData(), data || {});
+    }
 
-      setText('fingerOn', data.fingerOn ? '已检测到' : '未检测到');
-      setText('fingerStatus', data.fingerOn ? '已佩戴' : '未佩戴');
-      setBg('fingerStatus', data.fingerColor);
+    async function updateData() {
+      try {
+        const data = normalizeData(latestData);
 
-      setText('validState', data.valid ? '有效' : '无效');
-      setText('validStatus', data.valid ? '信号良好' : '信号较弱');
-      setBg('validStatus', data.validColor);
+        setText('heartRate', data.heartRate + ' BPM');
+        setText('hrStatus', data.hrStatus);
+        setColor('heartRate', data.hrColor);
+        setBg('hrStatus', data.hrColor);
 
-      setText('activityText', data.activityText);
-      setBg('activityStatus', data.activityColor);
-      setColor('activityText', data.activityColor);
+        setText('spo2', data.spo2 + ' %');
+        setText('spo2Status', data.spo2Status);
+        setColor('spo2', data.spo2Color);
+        setBg('spo2Status', data.spo2Color);
 
-      setText('stepCount', data.stepCount);
-      setText('accValue', data.accValue);
+        setText('fingerOn', data.fingerOn ? '已检测到' : '未检测到');
+        setText('fingerStatus', data.fingerOn ? '已佩戴' : '未佩戴');
+        setBg('fingerStatus', data.fingerColor);
 
-      setText('healthAdvice', data.healthAdvice);
-      setText('sportAdvice', data.sportAdvice);
+        setText('validState', data.valid ? '有效' : '无效');
+        setText('validStatus', data.valid ? '信号良好' : '信号较弱');
+        setBg('validStatus', data.validColor);
 
-      setText('sessionValidCount', data.sessionValidCount);
-      setText('sessionHrAvg', data.sessionHrAvg + ' BPM');
-      setText('sessionSpo2Avg', data.sessionSpo2Avg + ' %');
-      setText('sessionHrMin', data.sessionHrMin + ' BPM');
-      setText('sessionHrMax', data.sessionHrMax + ' BPM');
-      setText('sessionSpo2Min', data.sessionSpo2Min + ' %');
-      setText('sessionSpo2Max', data.sessionSpo2Max + ' %');
+        setText('activityText', data.activityText);
+        setBg('activityStatus', data.activityColor);
+        setColor('activityText', data.activityColor);
 
-      setText('dailyMeasureTimes', data.dailyMeasureTimes);
-      setText('dailyHrAvg', data.dailyHrAvg + ' BPM');
-      setText('dailySpo2Avg', data.dailySpo2Avg + ' %');
-      setText('dailyLastHr', data.dailyLastHr + ' BPM');
-      setText('dailyLastSpo2', data.dailyLastSpo2 + ' %');
+        setText('stepCount', data.stepCount);
+        setText('accValue', data.accValue);
+
+        setText('healthAdvice', data.healthAdvice);
+        setText('sportAdvice', data.sportAdvice);
+
+        setText('sessionValidCount', data.sessionValidCount);
+        setText('sessionHrAvg', data.sessionHrAvg + ' BPM');
+        setText('sessionSpo2Avg', data.sessionSpo2Avg + ' %');
+        setText('sessionHrMin', data.sessionHrMin + ' BPM');
+        setText('sessionHrMax', data.sessionHrMax + ' BPM');
+        setText('sessionSpo2Min', data.sessionSpo2Min + ' %');
+        setText('sessionSpo2Max', data.sessionSpo2Max + ' %');
+
+        setText('dailyMeasureTimes', data.dailyMeasureTimes);
+        setText('dailyHrAvg', data.dailyHrAvg + ' BPM');
+        setText('dailySpo2Avg', data.dailySpo2Avg + ' %');
+        setText('dailyLastHr', data.dailyLastHr + ' BPM');
+        setText('dailyLastSpo2', data.dailyLastSpo2 + ' %');
+      } catch (e) {
+        console.log('update error:', e);
+      }
     }
 
     function connectMqtt() {
@@ -203,7 +248,7 @@
       client.on("message", (receivedTopic, payload) => {
         if (receivedTopic !== topic) return;
         try {
-          updateData(JSON.parse(payload.toString()));
+          latestData = JSON.parse(payload.toString());
         } catch (error) {
           console.log(error);
         }
@@ -219,6 +264,8 @@
     }
 
     connectMqtt();
+    setInterval(updateData, 1000);
+    updateData();
   </script>
 </body>
 </html>
