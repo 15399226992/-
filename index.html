@@ -1,125 +1,224 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>智能手表 MQTT 监测</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能运动健康手表监测平台</title>
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
-    *{box-sizing:border-box}
-    body{margin:0;font-family:"Microsoft YaHei",Arial,sans-serif;background:#f5f7fb;color:#263238}
-    header{background:#1565c0;color:white;padding:22px 18px}
-    header h1{margin:0;font-size:26px}
-    header p{margin:8px 0 0;font-size:14px;opacity:.9}
-    main{max-width:1100px;margin:0 auto;padding:18px}
-    .status{display:flex;align-items:center;gap:10px;margin-bottom:16px;font-size:14px;color:#546e7a}
-    .dot{width:10px;height:10px;border-radius:50%;background:#e53935}
-    .dot.ok{background:#43a047}
-    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
-    .card{background:white;border-radius:8px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
-    .label{font-size:14px;color:#607d8b;margin-bottom:8px}
-    .value{font-size:28px;font-weight:700;line-height:1.2}
-    .small{font-size:16px;line-height:1.7}
-    pre{white-space:pre-wrap;word-break:break-word;background:#102027;color:#e3f2fd;border-radius:8px;padding:14px;overflow:auto}
+    body{font-family:'Microsoft YaHei',Arial,Helvetica,sans-serif;background:#f4f7fb;margin:0;padding:0;color:#333;}
+    .header{background:linear-gradient(135deg,#1976D2,#26C6DA);color:white;padding:24px;text-align:center;}
+    .header h1{margin:0;font-size:30px;}
+    .header p{margin-top:8px;font-size:16px;opacity:0.95;}
+    .container{max-width:1200px;margin:auto;padding:18px;}
+    .section-title{font-size:24px;color:#1565C0;margin:22px 0 14px 0;font-weight:bold;}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;}
+    .card{background:white;border-radius:16px;padding:18px;box-shadow:0 4px 12px rgba(0,0,0,0.08);}
+    .title{font-size:15px;color:#666;margin-bottom:10px;}
+    .value{font-size:30px;font-weight:bold;}
+    .status{display:inline-block;padding:6px 12px;border-radius:20px;color:white;font-size:13px;margin-top:10px;}
+    .advice{font-size:18px;line-height:1.8;color:#333;}
+    table{width:100%;border-collapse:collapse;font-size:15px;}
+    th,td{padding:12px;border-bottom:1px solid #eee;text-align:left;}
+    th{color:#1565C0;}
+    .footer{text-align:center;color:#888;font-size:14px;margin:24px 0 10px 0;}
   </style>
 </head>
 <body>
-  <header>
+  <div class="header">
     <h1>智能运动健康手表监测平台</h1>
-    <p>MQTT 公网实时数据</p>
-  </header>
+    <p>基于 STM32 + MAX30102 + ESP32 的实时健康监测系统</p>
+  </div>
 
-  <main>
-    <div class="status">
-      <span id="dot" class="dot"></span>
-      <span id="conn">正在连接 MQTT...</span>
-      <span id="time"></span>
-    </div>
-
+  <div class="container">
+    <div class="section-title">实时健康监测</div>
     <div class="grid">
       <div class="card">
-        <div class="label">当前心率</div>
-        <div id="heartRate" class="value">-- BPM</div>
-        <div id="hrStatus" class="small">--</div>
+        <div class="title">当前心率</div>
+        <div class="value" id="heartRate">0 BPM</div>
+        <div class="status" id="hrStatus">无数据</div>
       </div>
+
       <div class="card">
-        <div class="label">当前血氧</div>
-        <div id="spo2" class="value">-- %</div>
-        <div id="spo2Status" class="small">--</div>
+        <div class="title">当前血氧</div>
+        <div class="value" id="spo2">0 %</div>
+        <div class="status" id="spo2Status">无数据</div>
       </div>
+
       <div class="card">
-        <div class="label">活动状态</div>
-        <div id="activityText" class="value">--</div>
-        <div id="stepCount" class="small">步数 --</div>
+        <div class="title">手指接触状态</div>
+        <div class="value" id="fingerOn">未检测到</div>
+        <div class="status" id="fingerStatus">未佩戴</div>
       </div>
+
       <div class="card">
-        <div class="label">信号状态</div>
-        <div id="fingerOn" class="small">手指接触 --</div>
-        <div id="valid" class="small">信号 --</div>
-      </div>
-      <div class="card">
-        <div class="label">健康建议</div>
-        <div id="healthAdvice" class="small">等待数据...</div>
-      </div>
-      <div class="card">
-        <div class="label">运动建议</div>
-        <div id="sportAdvice" class="small">等待数据...</div>
+        <div class="title">信号有效状态</div>
+        <div class="value" id="validState">无效</div>
+        <div class="status" id="validStatus">信号较弱</div>
       </div>
     </div>
 
-    <h2>原始数据</h2>
-    <pre id="raw">{}</pre>
-  </main>
+    <div class="section-title">活动状态分析</div>
+    <div class="grid">
+      <div class="card">
+        <div class="title">当前活动状态</div>
+        <div class="value" id="activityText" style="font-size:24px;">未知</div>
+        <div class="status" id="activityStatus">ACTIVITY</div>
+      </div>
+
+      <div class="card">
+        <div class="title">当前步数</div>
+        <div class="value" id="stepCount" style="color:#5E35B1;">0</div>
+        <div class="status" style="background:#5E35B1;">STEP COUNT</div>
+      </div>
+
+      <div class="card">
+        <div class="title">动态加速度</div>
+        <div class="value" id="accValue" style="color:#00897B;">0</div>
+        <div class="status" style="background:#00897B;">DYNAMIC ACC</div>
+      </div>
+
+      <div class="card">
+        <div class="title">健康建议</div>
+        <div class="advice" id="healthAdvice">--</div>
+      </div>
+
+      <div class="card">
+        <div class="title">运动建议</div>
+        <div class="advice" id="sportAdvice">--</div>
+      </div>
+    </div>
+
+    <div class="section-title">本次测量统计</div>
+    <div class="card">
+      <table>
+        <tr><th>统计项目</th><th>数值</th></tr>
+        <tr><td>有效采样次数</td><td id="sessionValidCount">0</td></tr>
+        <tr><td>平均心率</td><td id="sessionHrAvg">0 BPM</td></tr>
+        <tr><td>平均血氧</td><td id="sessionSpo2Avg">0 %</td></tr>
+        <tr><td>最低心率</td><td id="sessionHrMin">0 BPM</td></tr>
+        <tr><td>最高心率</td><td id="sessionHrMax">0 BPM</td></tr>
+        <tr><td>最低血氧</td><td id="sessionSpo2Min">0 %</td></tr>
+        <tr><td>最高血氧</td><td id="sessionSpo2Max">0 %</td></tr>
+      </table>
+    </div>
+
+    <div class="section-title">当日健康统计</div>
+    <div class="card">
+      <table>
+        <tr><th>统计项目</th><th>数值</th></tr>
+        <tr><td>测量次数</td><td id="dailyMeasureTimes">0</td></tr>
+        <tr><td>平均心率</td><td id="dailyHrAvg">0 BPM</td></tr>
+        <tr><td>平均血氧</td><td id="dailySpo2Avg">0 %</td></tr>
+        <tr><td>最新心率</td><td id="dailyLastHr">0 BPM</td></tr>
+        <tr><td>最新血氧</td><td id="dailyLastSpo2">0 %</td></tr>
+      </table>
+    </div>
+
+    <div class="footer">
+      智能运动健康监测系统 · STM32 + MAX30102 + ESP32
+    </div>
+  </div>
 
   <script>
-    const brokerUrl = "wss://broker.emqx.io:8084/mqtt";
+    const brokerUrls = [
+      "wss://broker.emqx.io:8084/mqtt",
+      "ws://broker.emqx.io:8083/mqtt"
+    ];
     const topic = "esp32-watch/peak/data";
-    const clientId = "watch_web_" + Math.random().toString(16).slice(2);
-    const client = mqtt.connect(brokerUrl, { clientId, clean: true, reconnectPeriod: 3000 });
+    let brokerIndex = 0;
+    let client = null;
 
-    const $ = (id) => document.getElementById(id);
+    function setText(id, text) {
+      document.getElementById(id).innerText = text;
+    }
 
-    client.on("connect", () => {
-      $("dot").classList.add("ok");
-      $("conn").innerText = "MQTT 已连接，订阅 " + topic;
-      client.subscribe(topic);
-    });
+    function setColor(id, color) {
+      document.getElementById(id).style.color = color;
+    }
 
-    client.on("reconnect", () => {
-      $("conn").innerText = "MQTT 正在重连...";
-    });
+    function setBg(id, color) {
+      document.getElementById(id).style.background = color;
+    }
 
-    client.on("close", () => {
-      $("dot").classList.remove("ok");
-      $("conn").innerText = "MQTT 已断开";
-    });
+    function updateData(data) {
+      setText('heartRate', data.heartRate + ' BPM');
+      setText('hrStatus', data.hrStatus);
+      setColor('heartRate', data.hrColor);
+      setBg('hrStatus', data.hrColor);
 
-    client.on("message", (receivedTopic, payload) => {
-      if (receivedTopic !== topic) return;
+      setText('spo2', data.spo2 + ' %');
+      setText('spo2Status', data.spo2Status);
+      setColor('spo2', data.spo2Color);
+      setBg('spo2Status', data.spo2Color);
 
-      const text = payload.toString();
-      $("raw").innerText = text;
-      $("time").innerText = "最后更新 " + new Date().toLocaleTimeString();
+      setText('fingerOn', data.fingerOn ? '已检测到' : '未检测到');
+      setText('fingerStatus', data.fingerOn ? '已佩戴' : '未佩戴');
+      setBg('fingerStatus', data.fingerColor);
 
-      try {
-        const data = JSON.parse(text);
-        $("heartRate").innerText = data.heartRate + " BPM";
-        $("heartRate").style.color = data.hrColor || "";
-        $("hrStatus").innerText = data.hrStatus || "--";
-        $("spo2").innerText = data.spo2 + " %";
-        $("spo2").style.color = data.spo2Color || "";
-        $("spo2Status").innerText = data.spo2Status || "--";
-        $("activityText").innerText = data.activityText || "--";
-        $("activityText").style.color = data.activityColor || "";
-        $("stepCount").innerText = "步数 " + data.stepCount;
-        $("fingerOn").innerText = "手指接触 " + (data.fingerOn ? "已检测到" : "未检测到");
-        $("valid").innerText = "信号 " + (data.valid ? "有效" : "无效");
-        $("healthAdvice").innerText = data.healthAdvice || "--";
-        $("sportAdvice").innerText = data.sportAdvice || "--";
-      } catch (error) {
-        console.log(error);
-      }
-    });
+      setText('validState', data.valid ? '有效' : '无效');
+      setText('validStatus', data.valid ? '信号良好' : '信号较弱');
+      setBg('validStatus', data.validColor);
+
+      setText('activityText', data.activityText);
+      setBg('activityStatus', data.activityColor);
+      setColor('activityText', data.activityColor);
+
+      setText('stepCount', data.stepCount);
+      setText('accValue', data.accValue);
+
+      setText('healthAdvice', data.healthAdvice);
+      setText('sportAdvice', data.sportAdvice);
+
+      setText('sessionValidCount', data.sessionValidCount);
+      setText('sessionHrAvg', data.sessionHrAvg + ' BPM');
+      setText('sessionSpo2Avg', data.sessionSpo2Avg + ' %');
+      setText('sessionHrMin', data.sessionHrMin + ' BPM');
+      setText('sessionHrMax', data.sessionHrMax + ' BPM');
+      setText('sessionSpo2Min', data.sessionSpo2Min + ' %');
+      setText('sessionSpo2Max', data.sessionSpo2Max + ' %');
+
+      setText('dailyMeasureTimes', data.dailyMeasureTimes);
+      setText('dailyHrAvg', data.dailyHrAvg + ' BPM');
+      setText('dailySpo2Avg', data.dailySpo2Avg + ' %');
+      setText('dailyLastHr', data.dailyLastHr + ' BPM');
+      setText('dailyLastSpo2', data.dailyLastSpo2 + ' %');
+    }
+
+    function connectMqtt() {
+      const brokerUrl = brokerUrls[brokerIndex];
+      const clientId = "watch_web_" + Math.random().toString(16).slice(2);
+
+      client = mqtt.connect(brokerUrl, {
+        clientId,
+        clean: true,
+        connectTimeout: 8000,
+        reconnectPeriod: 3000
+      });
+
+      client.on("connect", () => {
+        client.subscribe(topic);
+      });
+
+      client.on("message", (receivedTopic, payload) => {
+        if (receivedTopic !== topic) return;
+        try {
+          updateData(JSON.parse(payload.toString()));
+        } catch (error) {
+          console.log(error);
+        }
+      });
+
+      client.on("error", () => {
+        if (brokerIndex < brokerUrls.length - 1) {
+          client.end(true);
+          brokerIndex += 1;
+          connectMqtt();
+        }
+      });
+    }
+
+    connectMqtt();
   </script>
 </body>
 </html>
