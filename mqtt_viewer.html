@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>智能手表 MQTT 监测</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;font-family:"Microsoft YaHei",Arial,sans-serif;background:#f5f7fb;color:#263238}
+    header{background:#1565c0;color:white;padding:22px 18px}
+    header h1{margin:0;font-size:26px}
+    header p{margin:8px 0 0;font-size:14px;opacity:.9}
+    main{max-width:1100px;margin:0 auto;padding:18px}
+    .status{display:flex;align-items:center;gap:10px;margin-bottom:16px;font-size:14px;color:#546e7a}
+    .dot{width:10px;height:10px;border-radius:50%;background:#e53935}
+    .dot.ok{background:#43a047}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
+    .card{background:white;border-radius:8px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+    .label{font-size:14px;color:#607d8b;margin-bottom:8px}
+    .value{font-size:28px;font-weight:700;line-height:1.2}
+    .small{font-size:16px;line-height:1.7}
+    pre{white-space:pre-wrap;word-break:break-word;background:#102027;color:#e3f2fd;border-radius:8px;padding:14px;overflow:auto}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>智能运动健康手表监测平台</h1>
+    <p>MQTT 公网实时数据</p>
+  </header>
+
+  <main>
+    <div class="status">
+      <span id="dot" class="dot"></span>
+      <span id="conn">正在连接 MQTT...</span>
+      <span id="time"></span>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="label">当前心率</div>
+        <div id="heartRate" class="value">-- BPM</div>
+        <div id="hrStatus" class="small">--</div>
+      </div>
+      <div class="card">
+        <div class="label">当前血氧</div>
+        <div id="spo2" class="value">-- %</div>
+        <div id="spo2Status" class="small">--</div>
+      </div>
+      <div class="card">
+        <div class="label">活动状态</div>
+        <div id="activityText" class="value">--</div>
+        <div id="stepCount" class="small">步数 --</div>
+      </div>
+      <div class="card">
+        <div class="label">信号状态</div>
+        <div id="fingerOn" class="small">手指接触 --</div>
+        <div id="valid" class="small">信号 --</div>
+      </div>
+      <div class="card">
+        <div class="label">健康建议</div>
+        <div id="healthAdvice" class="small">等待数据...</div>
+      </div>
+      <div class="card">
+        <div class="label">运动建议</div>
+        <div id="sportAdvice" class="small">等待数据...</div>
+      </div>
+    </div>
+
+    <h2>原始数据</h2>
+    <pre id="raw">{}</pre>
+  </main>
+
+  <script>
+    const brokerUrl = "wss://broker.emqx.io:8084/mqtt";
+    const topic = "esp32-watch/001/data";
+    const clientId = "watch_web_" + Math.random().toString(16).slice(2);
+    const client = mqtt.connect(brokerUrl, { clientId, clean: true, reconnectPeriod: 3000 });
+
+    const $ = (id) => document.getElementById(id);
+
+    client.on("connect", () => {
+      $("dot").classList.add("ok");
+      $("conn").innerText = "MQTT 已连接，订阅 " + topic;
+      client.subscribe(topic);
+    });
+
+    client.on("reconnect", () => {
+      $("conn").innerText = "MQTT 正在重连...";
+    });
+
+    client.on("close", () => {
+      $("dot").classList.remove("ok");
+      $("conn").innerText = "MQTT 已断开";
+    });
+
+    client.on("message", (receivedTopic, payload) => {
+      if (receivedTopic !== topic) return;
+
+      const text = payload.toString();
+      $("raw").innerText = text;
+      $("time").innerText = "最后更新 " + new Date().toLocaleTimeString();
+
+      try {
+        const data = JSON.parse(text);
+        $("heartRate").innerText = data.heartRate + " BPM";
+        $("heartRate").style.color = data.hrColor || "";
+        $("hrStatus").innerText = data.hrStatus || "--";
+        $("spo2").innerText = data.spo2 + " %";
+        $("spo2").style.color = data.spo2Color || "";
+        $("spo2Status").innerText = data.spo2Status || "--";
+        $("activityText").innerText = data.activityText || "--";
+        $("activityText").style.color = data.activityColor || "";
+        $("stepCount").innerText = "步数 " + data.stepCount;
+        $("fingerOn").innerText = "手指接触 " + (data.fingerOn ? "已检测到" : "未检测到");
+        $("valid").innerText = "信号 " + (data.valid ? "有效" : "无效");
+        $("healthAdvice").innerText = data.healthAdvice || "--";
+        $("sportAdvice").innerText = data.sportAdvice || "--";
+      } catch (error) {
+        console.log(error);
+      }
+    });
+  </script>
+</body>
+</html>
